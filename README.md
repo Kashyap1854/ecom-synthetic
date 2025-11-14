@@ -17,6 +17,7 @@ This repository contains scripts to generate synthetic e-commerce data (~5 CSV f
    pip install -r requirements.txt
 
 <---------------------------------------------------------------------------------->
+
 Cursor Prompts Used
 
 These prompts were used inside Cursor to generate the pipeline.
