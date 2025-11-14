@@ -1,101 +1,141 @@
 
+import os
+import random
+from datetime import datetime
 from faker import Faker
 import pandas as pd
-import random
-import os
-from datetime import datetime, timedelta
 
 fake = Faker()
 random.seed(42)
+Faker.seed(42)
 
-OUTDIR = "data"
-os.makedirs(OUTDIR, exist_ok=True)
+DATA_DIR = "data"
+USER_COUNT = 200
+PRODUCT_COUNT = 100
+ORDER_COUNT = 400
+REVIEW_COUNT = 150
 
-N_USERS = 200
-N_PRODUCTS = 100
-N_ORDERS = 400
-MAX_ITEMS_PER_ORDER = 5
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# 1) users
-users = []
-for uid in range(1, N_USERS + 1):
-    profile = fake.simple_profile()
-    users.append({
-        "user_id": uid,
-        "username": profile["username"],
-        "email": profile["mail"],
-        "name": profile["name"],
-        "join_date": fake.date_between(start_date="-2y", end_date="today").isoformat()
-    })
-users_df = pd.DataFrame(users)
-users_df.to_csv(f"{OUTDIR}/users.csv", index=False)
+def generate_users(n):
+    users = []
+    for user_id in range(1, n + 1):
+        name = fake.name()
+        username = fake.user_name()
+        email = fake.email()
+        join_date = fake.date_between(start_date="-2y", end_date="today").isoformat()
+        users.append(
+            dict(
+                user_id=user_id,
+                username=username,
+                email=email,
+                name=name,
+                join_date=join_date,
+            )
+        )
+    return pd.DataFrame(users)
 
-# 2) products
-categories = ["Electronics", "Home", "Clothing", "Sports", "Beauty", "Books"]
-products = []
-for pid in range(1, N_PRODUCTS + 1):
-    products.append({
-        "product_id": pid,
-        "name": fake.catch_phrase()[:60],
-        "category": random.choice(categories),
-        "price": round(random.uniform(5, 500), 2),
-        "inventory_count": random.randint(0, 200)
-    })
-products_df = pd.DataFrame(products)
-products_df.to_csv(f"{OUTDIR}/products.csv", index=False)
+def generate_products(n):
+    categories = ["Electronics", "Home", "Beauty", "Sports", "Fashion", "Books"]
+    products = []
+    for product_id in range(1, n + 1):
+        name = fake.catch_phrase()
+        category = random.choice(categories)
+        price = round(random.uniform(5, 500), 2)
+        inventory_count = random.randint(0, 1000)
+        products.append(
+            dict(
+                product_id=product_id,
+                name=name,
+                category=category,
+                price=price,
+                inventory_count=inventory_count,
+            )
+        )
+    return pd.DataFrame(products)
 
-# 3) orders
-orders = []
-order_items = []
-order_id = 1
-for _ in range(N_ORDERS):
-    uid = random.randint(1, N_USERS)
-    created = fake.date_time_between(start_date="-1y", end_date="now")
-    num_items = random.randint(1, MAX_ITEMS_PER_ORDER)
-    total_amount = 0
-    for _ in range(num_items):
-        pid = random.randint(1, N_PRODUCTS)
-        qty = random.randint(1, 3)
-        price = products[pid - 1]["price"]
-        total_amount += price * qty
-        order_items.append({
-            "order_item_id": len(order_items) + 1,
-            "order_id": order_id,
-            "product_id": pid,
-            "quantity": qty,
-            "unit_price": price
-        })
-    orders.append({
-        "order_id": order_id,
-        "user_id": uid,
-        "order_date": created.isoformat(),
-        "total_amount": round(total_amount, 2),
-        "status": random.choice(["created", "paid", "shipped", "delivered", "cancelled"])
-    })
-    order_id += 1
+def generate_orders(n, user_ids):
+    statuses = ["pending", "processing", "shipped", "delivered", "cancelled"]
+    orders = []
+    for order_id in range(1, n + 1):
+        user_id = random.choice(user_ids)
+        order_date = fake.date_time_between(start_date="-1y", end_date="now").isoformat()
+        total_amount = round(random.uniform(20, 1500), 2)
+        status = random.choice(statuses)
+        orders.append(
+            dict(
+                order_id=order_id,
+                user_id=user_id,
+                order_date=order_date,
+                total_amount=total_amount,
+                status=status,
+            )
+        )
+    return pd.DataFrame(orders)
 
-orders_df = pd.DataFrame(orders)
-order_items_df = pd.DataFrame(order_items)
-orders_df.to_csv(f"{OUTDIR}/orders.csv", index=False)
-order_items_df.to_csv(f"{OUTDIR}/order_items.csv", index=False)
+def generate_order_items(orders_df, products_df):
+    order_items = []
+    order_item_id = 1
+    for _, order in orders_df.iterrows():
+        num_items = random.randint(1, 5)
+        product_choices = random.sample(list(products_df["product_id"]), k=num_items)
+        for product_id in product_choices:
+            quantity = random.randint(1, 5)
+            unit_price = float(
+                products_df.loc[products_df["product_id"] == product_id, "price"].iloc[0]
+            )
+            order_items.append(
+                dict(
+                    order_item_id=order_item_id,
+                    order_id=int(order["order_id"]),
+                    product_id=int(product_id),
+                    quantity=quantity,
+                    unit_price=unit_price,
+                )
+            )
+            order_item_id += 1
+    return pd.DataFrame(order_items)
 
-# 4) reviews (some users review some products)
-reviews = []
-review_id = 1
-for _ in range(int(N_PRODUCTS * 1.5)):
-    reviews.append({
-        "review_id": review_id,
-        "product_id": random.randint(1, N_PRODUCTS),
-        "user_id": random.randint(1, N_USERS),
-        "rating": random.randint(1, 5),
-        "review_text": fake.sentence(nb_words=12),
-        "review_date": fake.date_time_between(start_date="-1y", end_date="now").isoformat()
-    })
-    review_id += 1
+def generate_reviews(n, product_ids, user_ids):
+    reviews = []
+    for review_id in range(1, n + 1):
+        product_id = random.choice(product_ids)
+        user_id = random.choice(user_ids)
+        rating = random.randint(1, 5)
+        review_text = fake.paragraph(nb_sentences=3)
+        review_date = fake.date_between(start_date="-1y", end_date="today").isoformat()
+        reviews.append(
+            dict(
+                review_id=review_id,
+                product_id=product_id,
+                user_id=user_id,
+                rating=rating,
+                review_text=review_text,
+                review_date=review_date,
+            )
+        )
+    return pd.DataFrame(reviews)
 
-reviews_df = pd.DataFrame(reviews)
-reviews_df.to_csv(f"{OUTDIR}/reviews.csv", index=False)
+users_df = generate_users(USER_COUNT)
+products_df = generate_products(PRODUCT_COUNT)
+orders_df = generate_orders(ORDER_COUNT, list(users_df["user_id"]))
+order_items_df = generate_order_items(orders_df, products_df)
+reviews_df = generate_reviews(REVIEW_COUNT, list(products_df["product_id"]), list(users_df["user_id"]))
 
-print("Generated files in ./data:")
-for fn in ["users.csv", "products.csv", "orders.csv", "order_items.csv", "reviews.csv"]:
-    print(" -", os.path.join(OUTDIR, fn))
+file_map = {
+    "users.csv": users_df,
+    "products.csv": products_df,
+    "orders.csv": orders_df,
+    "order_items.csv": order_items_df,
+    "reviews.csv": reviews_df,
+}
+
+saved_paths = []
+for filename, df in file_map.items():
+    path = os.path.join(DATA_DIR, filename)
+    df.to_csv(path, index=False)
+    saved_paths.append(path)
+
+print("Generated files:")
+for path in saved_paths:
+    print(path)
