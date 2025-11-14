@@ -52,4 +52,18 @@ Requirements:
   reviews(product_id)
 - print row counts for each table after loading
 Return only the Python script, without explanation.
+
 Prompt 3 — Multi‑Table SQL Join Query
+Write a SQL query for SQLite that returns a consolidated report of:
+users, orders, order_items, products, and reviews.
+
+
+Requirements:
+- only include orders from the last 30 days
+- output columns:
+user_id, username, order_id, order_date,
+product_id, product_name, quantity, unit_price, product_avg_rating
+- product_avg_rating = average of all ratings for that product
+- if rating missing, use 0
+- sort by order_date descending
+Return only the SQL query without explanation.
